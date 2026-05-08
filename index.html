@@ -88,12 +88,8 @@ th, td {
 }
 
 .status-ok { color: var(--verde); font-weight: 700; }
-.status-bad { color: var(--rojo); font-weight: 700; }
+status-bad { color: var(--rojo); font-weight: 700; }
 
-@media (min-width: 600px) {
-  h1 { font-size: 1.6rem; }
-  h2 { font-size: 1.3rem; }
-}
 </style>
 </head>
 
@@ -104,7 +100,7 @@ th, td {
 
 <!-- REGISTRO -->
 <div class="card">
-  <h2>Crear plan</h2>
+  <h2>Datos del usuario</h2>
 
   <label>Nombre</label>
   <input id="nombre" />
@@ -125,6 +121,13 @@ th, td {
   <label>Altura (cm)</label>
   <input type="number" id="altura" />
 
+  <button class="btn" onclick="guardarUsuario()">Guardar usuario</button>
+</div>
+
+<!-- PLAN -->
+<div class="card">
+  <h2>Plan de pérdida</h2>
+
   <label>Intensidad</label>
   <select id="intensidad">
     <option value="">Selecciona…</option>
@@ -134,6 +137,7 @@ th, td {
   </select>
 
   <button class="btn" onclick="crearPlan()">Crear plan</button>
+  <button class="btn" onclick="guardarUsuarioConPlan()">Guardar usuario + plan</button>
 
   <p id="resumen"></p>
 </div>
@@ -162,8 +166,43 @@ th, td {
 </div>
 
 <script>
+let usuario = null;
 let plan = [];
 let registros = [];
+
+/* ---------------------------
+   LOCAL STORAGE
+---------------------------- */
+function saveAll() {
+  localStorage.setItem("pesoApp", JSON.stringify({ usuario, plan, registros }));
+}
+
+function loadAll() {
+  const data = localStorage.getItem("pesoApp");
+  if (!data) return;
+  const obj = JSON.parse(data);
+  usuario = obj.usuario;
+  plan = obj.plan;
+  registros = obj.registros;
+  rellenarSemanas();
+  renderTabla();
+}
+loadAll();
+
+/* ---------------------------
+   GUARDAR USUARIO
+---------------------------- */
+function guardarUsuario() {
+  usuario = {
+    nombre: nombre.value,
+    sexo: sexo.value,
+    edad: parseInt(edad.value),
+    pesoInicial: parseFloat(peso.value),
+    altura: parseInt(altura.value)
+  };
+  saveAll();
+  alert("Usuario guardado");
+}
 
 /* ---------------------------
    PESO IDEAL
@@ -182,18 +221,18 @@ function calcularPesoIdeal(sexo, altura, edad) {
    CREAR PLAN
 ---------------------------- */
 function crearPlan() {
-  const sexo = document.getElementById("sexo").value;
-  const edad = parseInt(document.getElementById("edad").value);
-  const pesoInicial = parseFloat(document.getElementById("peso").value);
-  const alturaCm = parseInt(document.getElementById("altura").value);
-  const intensidad = document.getElementById("intensidad").value;
-
-  if (!sexo || !edad || !pesoInicial || !alturaCm || !intensidad) {
-    alert("Completa todos los campos");
+  if (!usuario) {
+    alert("Primero guarda el usuario");
     return;
   }
 
-  const pesoIdeal = calcularPesoIdeal(sexo, alturaCm, edad);
+  const intensidad = intensidad.value;
+  if (!intensidad) {
+    alert("Selecciona intensidad");
+    return;
+  }
+
+  const pesoIdeal = calcularPesoIdeal(usuario.sexo, usuario.altura, usuario.edad);
 
   const factores = {
     conservadora: 0.004,
@@ -201,10 +240,10 @@ function crearPlan() {
     agresiva: 0.012
   };
 
-  const perdidaSemanal = pesoInicial * factores[intensidad];
+  const perdidaSemanal = usuario.pesoInicial * factores[intensidad];
 
   plan = [];
-  let pesoActual = pesoInicial;
+  let pesoActual = usuario.pesoInicial;
   let semana = 1;
 
   while (pesoActual > pesoIdeal) {
@@ -225,10 +264,22 @@ function crearPlan() {
   renderTabla();
 
   resumen.innerHTML = `
-    Peso ideal calculado: <strong>${pesoIdeal} kg</strong><br>
-    Duración del plan: <strong>${plan.length} semanas</strong><br>
-    Pérdida semanal estimada: <strong>${perdidaSemanal.toFixed(2)} kg</strong>
+    Peso ideal: <strong>${pesoIdeal} kg</strong><br>
+    Semanas: <strong>${plan.length}</strong><br>
+    Pérdida semanal: <strong>${perdidaSemanal.toFixed(2)} kg</strong>
   `;
+}
+
+/* ---------------------------
+   GUARDAR USUARIO + PLAN
+---------------------------- */
+function guardarUsuarioConPlan() {
+  if (!usuario || plan.length === 0) {
+    alert("Primero crea el plan");
+    return;
+  }
+  saveAll();
+  alert("Usuario + plan guardado");
 }
 
 /* ---------------------------
@@ -258,6 +309,7 @@ function registrarPeso() {
   else registros.push({ semana, pesoReal: pesoR });
 
   pesoReal.value = "";
+  saveAll();
   renderTabla();
 }
 
@@ -265,6 +317,11 @@ function registrarPeso() {
    TABLA
 ---------------------------- */
 function renderTabla() {
+  if (!plan.length) {
+    tabla.innerHTML = "<p>No hay plan creado.</p>";
+    return;
+  }
+
   let html = `
     <table>
       <tr>
