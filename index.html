@@ -182,11 +182,11 @@ function calcularPesoIdeal(sexo, altura, edad) {
    CREAR PLAN
 ---------------------------- */
 function crearPlan() {
-  const sexo = sexo.value;
+  const sexo = document.getElementById("sexo").value;
   const edad = parseInt(document.getElementById("edad").value);
-  const pesoInicial = parseFloat(peso.value);
-  const alturaCm = parseInt(altura.value);
-  const intensidad = intensidad.value;
+  const pesoInicial = parseFloat(document.getElementById("peso").value);
+  const alturaCm = parseInt(document.getElementById("altura").value);
+  const intensidad = document.getElementById("intensidad").value;
 
   if (!sexo || !edad || !pesoInicial || !alturaCm || !intensidad) {
     alert("Completa todos los campos");
@@ -216,4 +216,99 @@ function crearPlan() {
     semana++;
   }
 
-  // última semana = peso ideal
+  plan.push({
+    semana,
+    pesoObjetivo: pesoIdeal
+  });
+
+  rellenarSemanas();
+  renderTabla();
+
+  resumen.innerHTML = `
+    Peso ideal calculado: <strong>${pesoIdeal} kg</strong><br>
+    Duración del plan: <strong>${plan.length} semanas</strong><br>
+    Pérdida semanal estimada: <strong>${perdidaSemanal.toFixed(2)} kg</strong>
+  `;
+}
+
+/* ---------------------------
+   SELECT SEMANAS
+---------------------------- */
+function rellenarSemanas() {
+  semanaSelect.innerHTML = "";
+  plan.forEach(p => {
+    const opt = document.createElement("option");
+    opt.value = p.semana;
+    opt.textContent = `Semana ${p.semana} (obj: ${p.pesoObjetivo} kg)`;
+    semanaSelect.appendChild(opt);
+  });
+}
+
+/* ---------------------------
+   REGISTRAR PESO
+---------------------------- */
+function registrarPeso() {
+  const semana = parseInt(semanaSelect.value);
+  const pesoR = parseFloat(pesoReal.value);
+
+  if (!semana || !pesoR) return;
+
+  const existente = registros.find(r => r.semana === semana);
+  if (existente) existente.pesoReal = pesoR;
+  else registros.push({ semana, pesoReal: pesoR });
+
+  pesoReal.value = "";
+  renderTabla();
+}
+
+/* ---------------------------
+   TABLA
+---------------------------- */
+function renderTabla() {
+  let html = `
+    <table>
+      <tr>
+        <th>Semana</th>
+        <th>Peso objetivo</th>
+        <th>Peso real</th>
+        <th>Diferencia</th>
+        <th>Estado</th>
+      </tr>
+  `;
+
+  plan.forEach(p => {
+    const reg = registros.find(r => r.semana === p.semana);
+    let real = reg ? reg.pesoReal : "-";
+    let diff = "-";
+    let estado = "-";
+    let clase = "";
+
+    if (reg) {
+      diff = (reg.pesoReal - p.pesoObjetivo).toFixed(2);
+      if (reg.pesoReal <= p.pesoObjetivo) {
+        estado = "🟢";
+        clase = "status-ok";
+      } else {
+        estado = "🔴";
+        clase = "status-bad";
+      }
+    }
+
+    html += `
+      <tr>
+        <td>${p.semana}</td>
+        <td>${p.pesoObjetivo}</td>
+        <td>${real}</td>
+        <td>${diff}</td>
+        <td class="${clase}">${estado}</td>
+      </tr>
+    `;
+  });
+
+  html += "</table>";
+  tabla.innerHTML = html;
+}
+</script>
+
+</body>
+</html>
