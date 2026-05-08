@@ -1,0 +1,499 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <title>Control de Peso – Plan y Seguimiento</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <style>
+    :root {
+      --verde: #2e7d32;
+      --rojo: #c62828;
+      --gris-claro: #f5f5f5;
+      --gris-medio: #e0e0e0;
+      --negro: #222;
+      --primario: #1976d2;
+    }
+
+    * {
+      box-sizing: border-box;
+      font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    }
+
+    body {
+      margin: 0;
+      padding: 0;
+      background: linear-gradient(135deg, #e3f2fd, #f1f8e9);
+      color: #222;
+      display: flex;
+      justify-content: center;
+      min-height: 100vh;
+    }
+
+    .app-container {
+      width: 100%;
+      max-width: 960px;
+      padding: 16px;
+    }
+
+    h1 {
+      text-align: center;
+      margin-bottom: 8px;
+    }
+
+    h2 {
+      margin-top: 24px;
+      margin-bottom: 8px;
+      font-size: 1.2rem;
+    }
+
+    .card {
+      background: white;
+      border-radius: 10px;
+      padding: 16px;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+      margin-bottom: 16px;
+    }
+
+    .grid-2 {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+      gap: 12px;
+    }
+
+    label {
+      font-size: 0.9rem;
+      font-weight: 600;
+      display: block;
+      margin-bottom: 4px;
+    }
+
+    input[type="text"],
+    input[type="number"],
+    input[type="date"],
+    select {
+      width: 100%;
+      padding: 8px 10px;
+      border-radius: 6px;
+      border: 1px solid #ccc;
+      font-size: 0.95rem;
+    }
+
+    input:focus,
+    select:focus {
+      outline: none;
+      border-color: var(--primario);
+      box-shadow: 0 0 0 2px rgba(25,118,210,0.15);
+    }
+
+    .btn {
+      display: inline-block;
+      padding: 8px 16px;
+      border-radius: 6px;
+      border: none;
+      cursor: pointer;
+      font-size: 0.95rem;
+      font-weight: 600;
+      background: var(--primario);
+      color: white;
+      transition: background 0.2s ease, transform 0.1s ease;
+    }
+
+    .btn:active {
+      transform: scale(0.98);
+    }
+
+    .btn-secondary {
+      background: #555;
+    }
+
+    .btn:disabled {
+      opacity: 0.6;
+      cursor: not-allowed;
+    }
+
+    .small-text {
+      font-size: 0.8rem;
+      color: #555;
+    }
+
+    .info {
+      font-size: 0.9rem;
+      margin-top: 4px;
+    }
+
+    .tag {
+      display: inline-block;
+      padding: 2px 8px;
+      border-radius: 999px;
+      font-size: 0.75rem;
+      background: var(--gris-claro);
+      margin-right: 4px;
+    }
+
+    .tag-success {
+      background: #c8e6c9;
+      color: #1b5e20;
+    }
+
+    .tag-danger {
+      background: #ffcdd2;
+      color: #b71c1c;
+    }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 0.85rem;
+      margin-top: 8px;
+    }
+
+    th, td {
+      border: 1px solid var(--gris-medio);
+      padding: 6px 8px;
+      text-align: center;
+      white-space: nowrap;
+    }
+
+    th {
+      background: var(--gris-claro);
+      font-weight: 600;
+    }
+
+    .status-ok {
+      color: var(--verde);
+      font-weight: 700;
+    }
+
+    .status-bad {
+      color: var(--rojo);
+      font-weight: 700;
+    }
+
+    .flex {
+      display: flex;
+      gap: 8px;
+      flex-wrap: wrap;
+      align-items: center;
+      justify-content: space-between;
+    }
+
+    .mt-8 { margin-top: 8px; }
+    .mt-12 { margin-top: 12px; }
+    .mt-16 { margin-top: 16px; }
+
+    @media (max-width: 600px) {
+      th, td {
+        font-size: 0.78rem;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div class="app-container">
+    <h1>Control y Seguimiento de Peso</h1>
+    <p class="small-text" style="text-align:center;">
+      App de registro, plan y seguimiento semanal de peso (no es consejo médico).
+    </p>
+
+    <!-- REGISTRO DE USUARIO Y PLAN -->
+    <div class="card">
+      <h2>1. Crear usuario y plan</h2>
+      <form id="userForm">
+        <div class="grid-2">
+          <div>
+            <label for="nombre">Nombre</label>
+            <input type="text" id="nombre" required />
+          </div>
+          <div>
+            <label for="sexo">Sexo</label>
+            <select id="sexo" required>
+              <option value="">Selecciona...</option>
+              <option value="hombre">Hombre</option>
+              <option value="mujer">Mujer</option>
+            </select>
+          </div>
+          <div>
+            <label for="edad">Edad (años)</label>
+            <input type="number" id="edad" min="10" max="120" required />
+          </div>
+          <div>
+            <label for="pesoInicial">Peso actual (kg)</label>
+            <input type="number" id="pesoInicial" min="30" max="300" step="0.1" required />
+          </div>
+          <div>
+            <label for="intensidad">Propuesta de bajada</label>
+            <select id="intensidad" required>
+              <option value="">Selecciona...</option>
+              <option value="conservadora">Conservadora</option>
+              <option value="realista">Realista</option>
+              <option value="agresiva">Agresiva</option>
+            </select>
+          </div>
+          <div>
+            <label for="fechaInicio">Fecha de inicio del plan</label>
+            <input type="date" id="fechaInicio" required />
+          </div>
+        </div>
+
+        <p class="small-text mt-8">
+          Fórmula: pérdida semanal = peso actual × factor según objetivo.<br />
+          Conservadora: 0.4%/semana · Realista: 0.7%/semana · Agresiva: 1.2%/semana.
+        </p>
+
+        <button type="submit" class="btn mt-12">Crear plan</button>
+      </form>
+
+      <div id="planResumen" class="info mt-12" style="display:none;"></div>
+    </div>
+
+    <!-- REGISTRO DE PESO -->
+    <div class="card">
+      <h2>2. Registro de peso</h2>
+      <p class="small-text">
+        Registra tu peso semana a semana. El sistema lo comparará con el peso objetivo calculado.
+      </p>
+      <form id="registroForm">
+        <div class="grid-2">
+          <div>
+            <label for="semanaRegistro">Semana del plan</label>
+            <select id="semanaRegistro" required>
+              <option value="">Crea primero un plan</option>
+            </select>
+          </div>
+          <div>
+            <label for="pesoReal">Peso real (kg)</label>
+            <input type="number" id="pesoReal" min="30" max="300" step="0.1" required />
+          </div>
+        </div>
+        <button type="submit" class="btn mt-12" id="btnRegistrar" disabled>Registrar peso</button>
+      </form>
+      <div id="ultimoRegistro" class="info mt-12"></div>
+    </div>
+
+    <!-- SEGUIMIENTO -->
+    <div class="card">
+      <h2>3. Seguimiento del plan</h2>
+      <p class="small-text">
+        Verde = peso igual o inferior al objetivo. Rojo = peso superior al objetivo.
+      </p>
+      <div class="flex mt-8">
+        <div>
+          <span class="tag tag-success">🟢 Dentro del plan</span>
+          <span class="tag tag-danger">🔴 Por encima del plan</span>
+        </div>
+        <button class="btn btn-secondary" id="btnRefrescar">Refrescar seguimiento</button>
+      </div>
+      <div id="tablaSeguimiento" class="mt-12"></div>
+    </div>
+  </div>
+
+  <script>
+    // Factores según intensidad
+    const FACTORES = {
+      conservadora: 0.004, // 0.4% del peso/semana
+      realista: 0.007,     // 0.7% del peso/semana
+      agresiva: 0.012      // 1.2% del peso/semana
+    };
+
+    let plan = null;        // array de semanas con peso objetivo
+    let usuario = null;     // datos básicos del usuario
+    let registros = [];     // { semana, pesoReal }
+
+    const userForm = document.getElementById('userForm');
+    const planResumen = document.getElementById('planResumen');
+    const semanaRegistroSelect = document.getElementById('semanaRegistro');
+    const registroForm = document.getElementById('registroForm');
+    const btnRegistrar = document.getElementById('btnRegistrar');
+    const ultimoRegistro = document.getElementById('ultimoRegistro');
+    const tablaSeguimientoDiv = document.getElementById('tablaSeguimiento');
+    const btnRefrescar = document.getElementById('btnRefrescar');
+    const fechaInicioInput = document.getElementById('fechaInicio');
+
+    // Poner hoy por defecto en fecha de inicio
+    (function setToday() {
+      const hoy = new Date();
+      const yyyy = hoy.getFullYear();
+      const mm = String(hoy.getMonth() + 1).padStart(2, '0');
+      const dd = String(hoy.getDate()).padStart(2, '0');
+      fechaInicioInput.value = `${yyyy}-${mm}-${dd}`;
+    })();
+
+    function addDays(date, days) {
+      const result = new Date(date);
+      result.setDate(result.getDate() + days);
+      return result;
+    }
+
+    function formatDate(date) {
+      const d = new Date(date);
+      const dd = String(d.getDate()).padStart(2, '0');
+      const mm = String(d.getMonth() + 1).padStart(2, '0');
+      const yyyy = d.getFullYear();
+      return `${dd}/${mm}/${yyyy}`;
+    }
+
+    function generarPlan(pesoInicial, intensidad, fechaInicio, semanas = 52) {
+      const factor = FACTORES[intensidad];
+      const perdidaSemanal = pesoInicial * factor;
+      const arr = [];
+      let peso = pesoInicial;
+
+      for (let i = 0; i < semanas; i++) {
+        if (i > 0) {
+          peso -= perdidaSemanal;
+        }
+        arr.push({
+          semana: i + 1,
+          fecha: addDays(fechaInicio, i * 7),
+          pesoObjetivo: parseFloat(peso.toFixed(2))
+        });
+      }
+      return { plan: arr, perdidaSemanal: parseFloat(perdidaSemanal.toFixed(2)) };
+    }
+
+    function rellenarSelectSemanas(plan) {
+      semanaRegistroSelect.innerHTML = '<option value="">Selecciona semana...</option>';
+      plan.forEach(item => {
+        const opt = document.createElement('option');
+        opt.value = item.semana;
+        opt.textContent = `Semana ${item.semana} – ${formatDate(item.fecha)} (obj: ${item.pesoObjetivo} kg)`;
+        semanaRegistroSelect.appendChild(opt);
+      });
+    }
+
+    function renderPlanResumen(usuario, planInfo) {
+      const semanas = planInfo.plan.length;
+      const pesoInicial = usuario.pesoInicial;
+      const pesoFinal = planInfo.plan[planInfo.plan.length - 1].pesoObjetivo;
+      const totalPerdida = parseFloat((pesoInicial - pesoFinal).toFixed(2));
+
+      planResumen.style.display = 'block';
+      planResumen.innerHTML = `
+        <strong>Usuario:</strong> ${usuario.nombre} (${usuario.sexo}, ${usuario.edad} años)<br>
+        <strong>Peso inicial:</strong> ${pesoInicial} kg<br>
+        <strong>Intensidad:</strong> ${usuario.intensidad}<br>
+        <strong>Pérdida semanal estimada:</strong> ${planInfo.perdidaSemanal} kg/semana<br>
+        <strong>Duración del plan:</strong> ${semanas} semanas<br>
+        <strong>Peso estimado al final:</strong> ${pesoFinal} kg (−${totalPerdida} kg)
+      `;
+    }
+
+    function registrarPeso(semana, pesoReal) {
+      const existente = registros.find(r => r.semana === semana);
+      if (existente) {
+        existente.pesoReal = pesoReal;
+      } else {
+        registros.push({ semana, pesoReal });
+      }
+    }
+
+    function renderSeguimiento() {
+      if (!plan) {
+        tablaSeguimientoDiv.innerHTML = '<p class="small-text">Crea primero un plan.</p>';
+        return;
+      }
+
+      let html = `
+        <table>
+          <thead>
+            <tr>
+              <th>Semana</th>
+              <th>Fecha</th>
+              <th>Peso objetivo (kg)</th>
+              <th>Peso real (kg)</th>
+              <th>Diferencia (kg)</th>
+              <th>Estado</th>
+            </tr>
+          </thead>
+          <tbody>
+      `;
+
+      plan.forEach(item => {
+        const reg = registros.find(r => r.semana === item.semana);
+        let pesoReal = reg ? reg.pesoReal : null;
+        let diff = '';
+        let estado = '';
+        let estadoClass = '';
+
+        if (pesoReal !== null && pesoReal !== undefined) {
+          diff = (pesoReal - item.pesoObjetivo).toFixed(2);
+          if (pesoReal <= item.pesoObjetivo) {
+            estado = '🟢 OK';
+            estadoClass = 'status-ok';
+          } else {
+            estado = '🔴 Por encima';
+            estadoClass = 'status-bad';
+          }
+        }
+
+        html += `
+          <tr>
+            <td>${item.semana}</td>
+            <td>${formatDate(item.fecha)}</td>
+            <td>${item.pesoObjetivo}</td>
+            <td>${pesoReal !== null ? pesoReal.toFixed(2) : '-'}</td>
+            <td>${diff !== '' ? diff : '-'}</td>
+            <td class="${estadoClass}">${estado || '-'}</td>
+          </tr>
+        `;
+      });
+
+      html += '</tbody></table>';
+      tablaSeguimientoDiv.innerHTML = html;
+    }
+
+    // EVENTOS
+
+    userForm.addEventListener('submit', (e) => {
+      e.preventDefault();
+
+      const nombre = document.getElementById('nombre').value.trim();
+      const sexo = document.getElementById('sexo').value;
+      const edad = parseInt(document.getElementById('edad').value, 10);
+      const pesoInicial = parseFloat(document.getElementById('pesoInicial').value);
+      const intensidad = document.getElementById('intensidad').value;
+      const fechaInicioStr = document.getElementById('fechaInicio').value;
+
+      if (!nombre || !sexo || !edad || !pesoInicial || !intensidad || !fechaInicioStr) return;
+
+      const fechaInicio = new Date(fechaInicioStr);
+
+      usuario = { nombre, sexo, edad, pesoInicial, intensidad, fechaInicio };
+      const planInfo = generarPlan(pesoInicial, intensidad, fechaInicio);
+      plan = planInfo.plan;
+      registros = []; // reset registros al crear nuevo plan
+
+      rellenarSelectSemanas(plan);
+      btnRegistrar.disabled = false;
+      renderPlanResumen(usuario, planInfo);
+      renderSeguimiento();
+      ultimoRegistro.textContent = '';
+    });
+
+    registroForm.addEventListener('submit', (e) => {
+      e.preventDefault();
+      if (!plan) return;
+
+      const semana = parseInt(semanaRegistroSelect.value, 10);
+      const pesoReal = parseFloat(document.getElementById('pesoReal').value);
+
+      if (!semana || !pesoReal) return;
+
+      registrarPeso(semana, pesoReal);
+      const semanaInfo = plan.find(p => p.semana === semana);
+
+      ultimoRegistro.innerHTML = `
+        Último registro: semana ${semana} (${formatDate(semanaInfo.fecha)}), 
+        peso real ${pesoReal.toFixed(2)} kg (objetivo ${semanaInfo.pesoObjetivo} kg)
+      `;
+
+      document.getElementById('pesoReal').value = '';
+      renderSeguimiento();
+    });
+
+    btnRefrescar.addEventListener('click', () => {
+      renderSeguimiento();
+    });
+  </script>
+</body>
+</html>
