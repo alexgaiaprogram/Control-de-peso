@@ -6,9 +6,6 @@
 <title>Control de Peso</title>
 
 <style>
-/* ---------------------------
-   MOBILE FIRST
----------------------------- */
 :root {
   --verde: #2e7d32;
   --rojo: #c62828;
@@ -88,8 +85,7 @@ th, td {
 }
 
 .status-ok { color: var(--verde); font-weight: 700; }
-status-bad { color: var(--rojo); font-weight: 700; }
-
+.status-bad { color: var(--rojo); font-weight: 700; }
 </style>
 </head>
 
@@ -170,9 +166,7 @@ let usuario = null;
 let plan = [];
 let registros = [];
 
-/* ---------------------------
-   LOCAL STORAGE
----------------------------- */
+/* LOCAL STORAGE */
 function saveAll() {
   localStorage.setItem("pesoApp", JSON.stringify({ usuario, plan, registros }));
 }
@@ -182,31 +176,27 @@ function loadAll() {
   if (!data) return;
   const obj = JSON.parse(data);
   usuario = obj.usuario;
-  plan = obj.plan;
-  registros = obj.registros;
+  plan = obj.plan || [];
+  registros = obj.registros || [];
   rellenarSemanas();
   renderTabla();
 }
 loadAll();
 
-/* ---------------------------
-   GUARDAR USUARIO
----------------------------- */
+/* GUARDAR USUARIO */
 function guardarUsuario() {
   usuario = {
-    nombre: nombre.value,
-    sexo: sexo.value,
-    edad: parseInt(edad.value),
-    pesoInicial: parseFloat(peso.value),
-    altura: parseInt(altura.value)
+    nombre: document.getElementById("nombre").value,
+    sexo: document.getElementById("sexo").value,
+    edad: parseInt(document.getElementById("edad").value),
+    pesoInicial: parseFloat(document.getElementById("peso").value),
+    altura: parseInt(document.getElementById("altura").value)
   };
   saveAll();
   alert("Usuario guardado");
 }
 
-/* ---------------------------
-   PESO IDEAL
----------------------------- */
+/* PESO IDEAL */
 function calcularPesoIdeal(sexo, altura, edad) {
   let base = sexo === "hombre"
     ? 50 + 0.9 * (altura - 152)
@@ -217,17 +207,15 @@ function calcularPesoIdeal(sexo, altura, edad) {
   return parseFloat(base.toFixed(1));
 }
 
-/* ---------------------------
-   CREAR PLAN
----------------------------- */
+/* CREAR PLAN */
 function crearPlan() {
   if (!usuario) {
     alert("Primero guarda el usuario");
     return;
   }
 
-  const intensidad = intensidad.value;
-  if (!intensidad) {
+  const intensidadVal = document.getElementById("intensidad").value;
+  if (!intensidadVal) {
     alert("Selecciona intensidad");
     return;
   }
@@ -240,7 +228,7 @@ function crearPlan() {
     agresiva: 0.012
   };
 
-  const perdidaSemanal = usuario.pesoInicial * factores[intensidad];
+  const perdidaSemanal = usuario.pesoInicial * factores[intensidadVal];
 
   plan = [];
   let pesoActual = usuario.pesoInicial;
@@ -263,18 +251,16 @@ function crearPlan() {
   rellenarSemanas();
   renderTabla();
 
-  resumen.innerHTML = `
+  document.getElementById("resumen").innerHTML = `
     Peso ideal: <strong>${pesoIdeal} kg</strong><br>
     Semanas: <strong>${plan.length}</strong><br>
     Pérdida semanal: <strong>${perdidaSemanal.toFixed(2)} kg</strong>
   `;
 }
 
-/* ---------------------------
-   GUARDAR USUARIO + PLAN
----------------------------- */
+/* GUARDAR USUARIO + PLAN */
 function guardarUsuarioConPlan() {
-  if (!usuario || plan.length === 0) {
+  if (!usuario || !plan.length) {
     alert("Primero crea el plan");
     return;
   }
@@ -282,25 +268,22 @@ function guardarUsuarioConPlan() {
   alert("Usuario + plan guardado");
 }
 
-/* ---------------------------
-   SELECT SEMANAS
----------------------------- */
+/* SELECT SEMANAS */
 function rellenarSemanas() {
-  semanaSelect.innerHTML = "";
+  const select = document.getElementById("semanaSelect");
+  select.innerHTML = "";
   plan.forEach(p => {
     const opt = document.createElement("option");
     opt.value = p.semana;
     opt.textContent = `Semana ${p.semana} (obj: ${p.pesoObjetivo} kg)`;
-    semanaSelect.appendChild(opt);
+    select.appendChild(opt);
   });
 }
 
-/* ---------------------------
-   REGISTRAR PESO
----------------------------- */
+/* REGISTRAR PESO */
 function registrarPeso() {
-  const semana = parseInt(semanaSelect.value);
-  const pesoR = parseFloat(pesoReal.value);
+  const semana = parseInt(document.getElementById("semanaSelect").value);
+  const pesoR = parseFloat(document.getElementById("pesoReal").value);
 
   if (!semana || !pesoR) return;
 
@@ -308,17 +291,16 @@ function registrarPeso() {
   if (existente) existente.pesoReal = pesoR;
   else registros.push({ semana, pesoReal: pesoR });
 
-  pesoReal.value = "";
+  document.getElementById("pesoReal").value = "";
   saveAll();
   renderTabla();
 }
 
-/* ---------------------------
-   TABLA
----------------------------- */
+/* TABLA */
 function renderTabla() {
+  const cont = document.getElementById("tabla");
   if (!plan.length) {
-    tabla.innerHTML = "<p>No hay plan creado.</p>";
+    cont.innerHTML = "<p>No hay plan creado.</p>";
     return;
   }
 
@@ -363,7 +345,7 @@ function renderTabla() {
   });
 
   html += "</table>";
-  tabla.innerHTML = html;
+  cont.innerHTML = html;
 }
 </script>
 
