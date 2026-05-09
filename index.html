@@ -10,6 +10,7 @@
   --rojo: #c62828;
   --gris: #e0e0e0;
   --primario: #1976d2;
+  --fondo-modal: rgba(0,0,0,0.4);
 }
 body {
   margin: 0;
@@ -60,6 +61,9 @@ input, select {
 .btn-secondary {
   background: #555;
 }
+.btn-danger {
+  background: var(--rojo);
+}
 .table-container {
   overflow-x: auto;
   -webkit-overflow-scrolling: touch;
@@ -76,21 +80,56 @@ th, td {
   font-size: 0.8rem;
   white-space: nowrap;
 }
-th:nth-child(1),
-td:nth-child(1) { width: 12%; }
-th:nth-child(2),
-td:nth-child(2) { width: 22%; }
-th:nth-child(3),
-td:nth-child(3) { width: 22%; }
-th:nth-child(4),
-td:nth-child(4) { width: 22%; }
-th:nth-child(5),
-td:nth-child(5) { width: 22%; }
 .status-ok { color: var(--verde); font-weight: 700; }
 .status-bad { color: var(--rojo); font-weight: 700; }
 .small {
   font-size: 0.8rem;
   color: #555;
+}
+
+/* MODAL */
+#modalOverlay {
+  position: fixed;
+  inset: 0;
+  background: var(--fondo-modal);
+  display: none;
+  align-items: center;
+  justify-content: center;
+  z-index: 999;
+}
+#modalBox {
+  background: #fff;
+  border-radius: 10px;
+  padding: 16px;
+  max-width: 320px;
+  width: 90%;
+  box-shadow: 0 2px 10px rgba(0,0,0,0.25);
+}
+#modalTitle {
+  font-size: 1rem;
+  margin-bottom: 8px;
+  font-weight: 700;
+}
+#modalBody {
+  font-size: 0.9rem;
+  margin-bottom: 10px;
+}
+.modal-btn {
+  width: 100%;
+  padding: 8px;
+  margin-top: 6px;
+  border-radius: 8px;
+  border: none;
+  font-size: 0.9rem;
+  font-weight: 600;
+}
+.modal-btn-primary {
+  background: var(--primario);
+  color: #fff;
+}
+.modal-btn-secondary {
+  background: #eee;
+  color: #333;
 }
 </style>
 </head>
@@ -159,7 +198,7 @@ td:nth-child(5) { width: 22%; }
 
   <!-- MODIFICAR REGISTRO -->
   <div class="card">
-    <h2>Modificar registro</h2>
+    <h2>Modificar / eliminar registro</h2>
 
     <label>Semana (ya registrada)</label>
     <select id="semanaEditSelect"></select>
@@ -168,6 +207,7 @@ td:nth-child(5) { width: 22%; }
     <input type="number" id="pesoRealEdit" step="0.1" />
 
     <button class="btn btn-secondary" id="btnEditarPeso">Modificar registro</button>
+    <button class="btn btn-danger" id="btnEliminarPeso">Eliminar registro</button>
   </div>
 
   <!-- SEGUIMIENTO -->
@@ -179,20 +219,47 @@ td:nth-child(5) { width: 22%; }
   </div>
 </div>
 
+<!-- MODAL GENÉRICO -->
+<div id="modalOverlay">
+  <div id="modalBox">
+    <div id="modalTitle"></div>
+    <div id="modalBody"></div>
+    <div id="modalButtons"></div>
+  </div>
+</div>
+
 <script>
-let users = {};          // { nombre: { usuario, plan, registros } }
-let currentUser = null;  // nombre del usuario activo
+let users = {};          
+let currentUser = null;  
+let currentPlanType = null; 
+let pendingOverwriteType = null;
 
 /* ---- LOCALSTORAGE ---- */
 function loadUsers() {
-  const data = localStorage.getItem("pesoAppUsers");
+  const data = localStorage.getItem("pesoAppUsers_v2");
   if (!data) return;
   users = JSON.parse(data);
 }
 function saveUsers() {
-  localStorage.setItem("pesoAppUsers", JSON.stringify(users));
+  localStorage.setItem("pesoAppUsers_v2", JSON.stringify(users));
 }
 loadUsers();
+
+/* ---- UTIL ---- */
+function planLabel(tipo) {
+  return tipo.charAt(0).toUpperCase() + tipo.slice(1);
+}
+
+/* ---- MODAL ---- */
+function openModal(title, bodyHTML, buttonsHTML) {
+  document.getElementById("modalTitle").innerHTML = title;
+  document.getElementById("modalBody").innerHTML = bodyHTML;
+  document.getElementById("modalButtons").innerHTML = buttonsHTML;
+  document.getElementById("modalOverlay").style.display = "flex";
+}
+function closeModal() {
+  document.getElementById("modalOverlay").style.display = "none";
+}
 
 /* ---- PESO IDEAL ---- */
 function calcularPesoIdeal(sexo, altura, edad) {
@@ -203,7 +270,7 @@ function calcularPesoIdeal(sexo, altura, edad) {
   return parseFloat(base.toFixed(1));
 }
 
-/* ---- REFRESCAR UI USUARIO Y PLAN ---- */
+/* ---- REFRESCAR UI ---- */
 function refrescarInfoUsuario() {
   const info = document.getElementById("infoUsuario");
   if (!currentUser || !users[currentUser]) {
@@ -212,31 +279,29 @@ function refrescarInfoUsuario() {
     document.getElementById("tabla").innerHTML = "<p>No hay plan creado.</p>";
     document.getElementById("semanaSelect").innerHTML = "";
     document.getElementById("semanaEditSelect").innerHTML = "";
+    currentPlanType = null;
     return;
   }
   const u = users[currentUser].usuario;
   info.textContent = `Sesión: ${u.nombre} (${u.sexo}, ${u.edad} años, ${u.pesoInicial} kg, ${u.altura} cm)`;
-  // Rellenar inputs con datos del usuario
+
   document.getElementById("nombre").value = u.nombre;
   document.getElementById("sexo").value = u.sexo;
   document.getElementById("edad").value = u.edad;
   document.getElementById("peso").value = u.pesoInicial;
   document.getElementById("altura").value = u.altura;
 
-  // Si hay plan, mostrar resumen y tabla
-  if (users[currentUser].plan && users[currentUser].plan.length > 0) {
+  if (currentPlanType && users[currentUser].planes[currentPlanType].plan.length > 0) {
     renderResumenPlan();
     rellenarSelectsSemanas();
     renderTabla();
   } else {
-    document.getElementById("resumenPlan").textContent = "No hay plan creado para este usuario.";
+    document.getElementById("resumenPlan").textContent = "No hay plan activo seleccionado.";
     document.getElementById("tabla").innerHTML = "<p>No hay plan creado.</p>";
-    document.getElementById("semanaSelect").innerHTML = "";
-    document.getElementById("semanaEditSelect").innerHTML = "";
   }
 }
 
-/* ---- CREAR USUARIO NUEVO ---- */
+/* ---- CREAR USUARIO ---- */
 function crearUsuarioNuevo() {
   const nombre = document.getElementById("nombre").value.trim();
   const sexo = document.getElementById("sexo").value;
@@ -249,41 +314,80 @@ function crearUsuarioNuevo() {
     return;
   }
   if (users[nombre]) {
-    alert("Ya existe un usuario con ese nombre. No se puede sobreescribir.");
+    alert("Ya existe un usuario con ese nombre.");
     return;
   }
 
   users[nombre] = {
     usuario: { nombre, sexo, edad, pesoInicial, altura },
-    plan: [],
-    registros: []
+    planes: {
+      conservadora: { plan: [], registros: [] },
+      realista: { plan: [], registros: [] },
+      agresiva: { plan: [], registros: [] }
+    }
   };
   currentUser = nombre;
+  currentPlanType = null;
   saveUsers();
   alert("Usuario creado correctamente");
   refrescarInfoUsuario();
 }
 
-/* ---- CARGAR USUARIO EXISTENTE ---- */
+/* ---- CARGAR USUARIO ---- */
 function cargarUsuarioExistente() {
   const nombre = document.getElementById("nombre").value.trim();
   if (!nombre) {
-    alert("Introduce el nombre del usuario a cargar");
+    alert("Introduce el nombre del usuario");
     return;
   }
   if (!users[nombre]) {
-    alert("No existe un usuario con ese nombre");
+    alert("No existe ese usuario");
     return;
   }
   currentUser = nombre;
-  alert("Usuario cargado");
+  currentPlanType = null;
+
+  const planes = users[currentUser].planes;
+  const tiposConPlan = Object.keys(planes).filter(t => planes[t].plan.length > 0);
+
+  if (tiposConPlan.length === 0) {
+    alert("Usuario cargado. No tiene planes.");
+    refrescarInfoUsuario();
+    return;
+  }
+  if (tiposConPlan.length === 1) {
+    currentPlanType = tiposConPlan[0];
+    alert(`Usuario cargado. Plan activo: ${planLabel(currentPlanType)}`);
+    refrescarInfoUsuario();
+    return;
+  }
+
+  let body = "<p>Selecciona un plan:</p>";
+  tiposConPlan.forEach(t => {
+    const p = planes[t].plan;
+    const semanas = p.length;
+    const ideal = p[p.length - 1].pesoObjetivo;
+    body += `
+      <button class="modal-btn modal-btn-primary" onclick="selectPlanFromModal('${t}')">
+        ${planLabel(t)} – ${semanas} semanas, ideal ${ideal} kg
+      </button>
+    `;
+  });
+  body += `<button class="modal-btn modal-btn-secondary" onclick="closeModal()">Cerrar</button>`;
+  openModal("Planes guardados", body, "");
+}
+
+function selectPlanFromModal(tipo) {
+  currentPlanType = tipo;
+  closeModal();
+  alert(`Plan seleccionado: ${planLabel(tipo)}`);
   refrescarInfoUsuario();
 }
 
-/* ---- CREAR / RECALCULAR PLAN ---- */
+/* ---- CREAR PLAN ---- */
 function crearPlan() {
-  if (!currentUser || !users[currentUser]) {
-    alert("Primero crea o carga un usuario");
+  if (!currentUser) {
+    alert("Primero carga un usuario");
     return;
   }
   const intensidad = document.getElementById("intensidad").value;
@@ -292,6 +396,37 @@ function crearPlan() {
     return;
   }
 
+  const planObj = users[currentUser].planes[intensidad];
+  if (planObj.plan.length > 0) {
+    pendingOverwriteType = intensidad;
+    const body = `
+      <p>Ya existe un plan <strong>${planLabel(intensidad)}</strong>.</p>
+      <p>¿Quieres reemplazarlo?</p>
+    `;
+    const buttons = `
+      <button class="modal-btn modal-btn-primary" onclick="confirmOverwritePlan()">Reemplazar</button>
+      <button class="modal-btn modal-btn-secondary" onclick="cancelOverwritePlan()">Cancelar</button>
+    `;
+    openModal("Reemplazar plan", body, buttons);
+    return;
+  }
+
+  doCreatePlan(intensidad, false);
+}
+
+function confirmOverwritePlan() {
+  const intensidad = pendingOverwriteType;
+  pendingOverwriteType = null;
+  closeModal();
+  doCreatePlan(intensidad, false);
+}
+function cancelOverwritePlan() {
+  pendingOverwriteType = null;
+  closeModal();
+}
+
+/* ---- CREAR PLAN REAL ---- */
+function doCreatePlan(intensidad, keepExisting) {
   const u = users[currentUser].usuario;
   const pesoIdeal = calcularPesoIdeal(u.sexo, u.altura, u.edad);
 
@@ -307,61 +442,55 @@ function crearPlan() {
   let semana = 1;
 
   while (pesoActual > pesoIdeal) {
-    plan.push({
-      semana,
-      pesoObjetivo: parseFloat(pesoActual.toFixed(2))
-    });
+    plan.push({ semana, pesoObjetivo: parseFloat(pesoActual.toFixed(2)) });
     pesoActual -= perdidaSemanal;
     semana++;
   }
-  plan.push({
-    semana,
-    pesoObjetivo: pesoIdeal
-  });
+  plan.push({ semana, pesoObjetivo: pesoIdeal });
 
-  users[currentUser].plan = plan;
-  // Al recalcular plan, mantenemos registros existentes si coinciden en semanas,
-  // pero podrían quedar semanas fuera si el plan se acorta; filtramos:
-  users[currentUser].registros = users[currentUser].registros.filter(r =>
-    plan.some(p => p.semana === r.semana)
-  );
-
+  users[currentUser].planes[intensidad] = { plan, registros: [] };
+  currentPlanType = intensidad;
   saveUsers();
-  renderResumenPlan(pesoIdeal, perdidaSemanal, plan.length);
+  renderResumenPlan(pesoIdeal, perdidaSemanal, plan.length, intensidad);
   rellenarSelectsSemanas();
   renderTabla();
 }
 
 /* ---- RESUMEN PLAN ---- */
-function renderResumenPlan(pesoIdealParam, perdidaSemanalParam, semanasParam) {
+function renderResumenPlan(pesoIdealParam, perdidaSemanalParam, semanasParam, tipoParam) {
   const resumen = document.getElementById("resumenPlan");
-  const u = users[currentUser].usuario;
-  const plan = users[currentUser].plan;
-  if (!plan || plan.length === 0) {
-    resumen.textContent = "No hay plan creado.";
+  if (!currentUser || !currentPlanType) {
+    resumen.textContent = "No hay plan activo.";
     return;
   }
+  const u = users[currentUser].usuario;
+  const planObj = users[currentUser].planes[currentPlanType];
+  const plan = planObj.plan;
+
   const pesoIdeal = pesoIdealParam ?? plan[plan.length - 1].pesoObjetivo;
   const semanas = semanasParam ?? plan.length;
   const perdidaSemanal = perdidaSemanalParam ?? (u.pesoInicial - pesoIdeal) / (semanas - 1 || 1);
+  const tipo = tipoParam ?? currentPlanType;
 
   resumen.innerHTML = `
-    Usuario: <strong>${u.nombre}</strong><br>
+    Plan: <strong>${planLabel(tipo)}</strong><br>
     Peso ideal: <strong>${pesoIdeal.toFixed(1)} kg</strong><br>
-    Semanas de plan: <strong>${semanas}</strong><br>
-    Pérdida semanal estimada: <strong>${perdidaSemanal.toFixed(2)} kg</strong>
+    Semanas: <strong>${semanas}</strong><br>
+    Pérdida semanal: <strong>${perdidaSemanal.toFixed(2)} kg</strong>
   `;
 }
 
-/* ---- SELECTS DE SEMANAS ---- */
+/* ---- SELECTS ---- */
 function rellenarSelectsSemanas() {
   const selectPend = document.getElementById("semanaSelect");
   const selectEdit = document.getElementById("semanaEditSelect");
   selectPend.innerHTML = "";
   selectEdit.innerHTML = "";
 
-  const plan = users[currentUser].plan || [];
-  const registros = users[currentUser].registros || [];
+  if (!currentUser || !currentPlanType) return;
+  const planObj = users[currentUser].planes[currentPlanType];
+  const plan = planObj.plan;
+  const registros = planObj.registros;
 
   plan.forEach(p => {
     const reg = registros.find(r => r.semana === p.semana);
@@ -381,121 +510,8 @@ function rellenarSelectsSemanas() {
 
 /* ---- REGISTRAR PESO ---- */
 function registrarPeso() {
-  if (!currentUser || !users[currentUser] || !users[currentUser].plan.length) {
+  if (!currentUser || !currentPlanType) {
     alert("No hay usuario o plan activo");
     return;
   }
-  const semana = parseInt(document.getElementById("semanaSelect").value);
-  const pesoR = parseFloat(document.getElementById("pesoReal").value);
-
-  if (!semana || !pesoR) {
-    alert("Selecciona semana y peso real");
-    return;
-  }
-
-  const registros = users[currentUser].registros;
-  const existente = registros.find(r => r.semana === semana);
-  if (existente) existente.pesoReal = pesoR;
-  else registros.push({ semana, pesoReal: pesoR });
-
-  document.getElementById("pesoReal").value = "";
-  saveUsers();
-  rellenarSelectsSemanas();
-  renderTabla();
-}
-
-/* ---- EDITAR REGISTRO ---- */
-function editarPeso() {
-  if (!currentUser || !users[currentUser] || !users[currentUser].plan.length) {
-    alert("No hay usuario o plan activo");
-    return;
-  }
-  const semana = parseInt(document.getElementById("semanaEditSelect").value);
-  const pesoR = parseFloat(document.getElementById("pesoRealEdit").value);
-
-  if (!semana || !pesoR) {
-    alert("Selecciona semana y nuevo peso real");
-    return;
-  }
-
-  const registros = users[currentUser].registros;
-  const existente = registros.find(r => r.semana === semana);
-  if (!existente) {
-    alert("No hay registro para esa semana");
-    return;
-  }
-  existente.pesoReal = pesoR;
-
-  document.getElementById("pesoRealEdit").value = "";
-  saveUsers();
-  rellenarSelectsSemanas();
-  renderTabla();
-}
-
-/* ---- TABLA ---- */
-function renderTabla() {
-  const cont = document.getElementById("tabla");
-  if (!currentUser || !users[currentUser] || !users[currentUser].plan.length) {
-    cont.innerHTML = "<p>No hay plan creado.</p>";
-    return;
-  }
-
-  const plan = users[currentUser].plan;
-  const registros = users[currentUser].registros;
-
-  let html = `
-    <table>
-      <tr>
-        <th>Sem</th>
-        <th>Obj (kg)</th>
-        <th>Real (kg)</th>
-        <th>Dif (kg)</th>
-        <th>Estado</th>
-      </tr>
-  `;
-
-  plan.forEach(p => {
-    const reg = registros.find(r => r.semana === p.semana);
-    let real = reg ? reg.pesoReal : "-";
-    let diff = "-";
-    let estado = "-";
-    let clase = "";
-
-    if (reg) {
-      diff = (reg.pesoReal - p.pesoObjetivo).toFixed(2);
-      if (reg.pesoReal <= p.pesoObjetivo) {
-        estado = "🟢";
-        clase = "status-ok";
-      } else {
-        estado = "🔴";
-        clase = "status-bad";
-      }
-    }
-
-    html += `
-      <tr>
-        <td>${p.semana}</td>
-        <td>${p.pesoObjetivo}</td>
-        <td>${real}</td>
-        <td>${diff}</td>
-        <td class="${clase}">${estado}</td>
-      </tr>
-    `;
-  });
-
-  html += "</table>";
-  cont.innerHTML = html;
-}
-
-/* ---- EVENTOS ---- */
-document.getElementById("btnCrearUsuario").addEventListener("click", crearUsuarioNuevo);
-document.getElementById("btnCargarUsuario").addEventListener("click", cargarUsuarioExistente);
-document.getElementById("btnCrearPlan").addEventListener("click", crearPlan);
-document.getElementById("btnRegistrarPeso").addEventListener("click", registrarPeso);
-document.getElementById("btnEditarPeso").addEventListener("click", editarPeso);
-
-// Al cargar, si hubiera usuarios, no se selecciona ninguno hasta que pongas nombre y cargues.
-refrescarInfoUsuario();
-</script>
-</body>
-</html>
+  const semana = parseInt(document
