@@ -299,6 +299,557 @@ th, td {
 ============================ -->
 <script>
 // 👉 AQUÍ VA TODA LA LÓGICA COMPLETA (PARTE 2)
+
+/* ============================================================
+   SISTEMA COMPLETO DE USUARIOS, PLANES, REGISTROS Y ACORDEONES
+   ============================================================ */
+
+let users = {};
+let currentUser = null;
+let currentPlanType = null;
+let pendingOverwriteType = null;
+
+/* ============================
+   LOCALSTORAGE
+============================ */
+function loadUsers() {
+  const data = localStorage.getItem("pesoAppUsers_v2");
+  if (!data) return;
+  users = JSON.parse(data);
+}
+function saveUsers() {
+  localStorage.setItem("pesoAppUsers_v2", JSON.stringify(users));
+}
+loadUsers();
+
+/* ============================
+   ACORDEONES
+============================ */
+function openAccordion(id) {
+  document.querySelectorAll(".acordeon").forEach(a => a.classList.remove("open"));
+  document.getElementById(id).classList.add("open");
+}
+
+function closeAllAccordions() {
+  document.querySelectorAll(".acordeon").forEach(a => a.classList.remove("open"));
+}
+
+document.querySelectorAll(".acordeon-header").forEach(header => {
+  header.addEventListener("click", () => {
+    const parent = header.parentElement;
+    const isOpen = parent.classList.contains("open");
+    closeAllAccordions();
+    if (!isOpen) parent.classList.add("open");
+  });
+});
+
+/* ============================
+   UTIL
+============================ */
+function planLabel(tipo) {
+  return tipo.charAt(0).toUpperCase() + tipo.slice(1);
+}
+
+/* ============================
+   MODAL
+============================ */
+function openModal(title, bodyHTML, buttonsHTML) {
+  document.getElementById("modalTitle").innerHTML = title;
+  document.getElementById("modalBody").innerHTML = bodyHTML;
+  document.getElementById("modalButtons").innerHTML = buttonsHTML;
+  document.getElementById("modalOverlay").style.display = "flex";
+}
+function closeModal() {
+  document.getElementById("modalOverlay").style.display = "none";
+}
+
+document.getElementById("modalOverlay").addEventListener("click", (e) => {
+  if (e.target.id === "modalOverlay") closeModal();
+});
+
+/* ============================
+   PESO IDEAL
+============================ */
+function calcularPesoIdeal(sexo, altura, edad) {
+  let base = sexo === "hombre"
+    ? 50 + 0.9 * (altura - 152)
+    : 45.5 + 0.9 * (altura - 152);
+  if (edad > 40) base += (edad - 40) * 0.1;
+  return parseFloat(base.toFixed(1));
+}
+
+/* ============================
+   REFRESCAR UI
+============================ */
+function refrescarInfoUsuario() {
+  const info = document.getElementById("infoUsuario");
+
+  if (!currentUser || !users[currentUser]) {
+    info.textContent = "Sin usuario cargado.";
+    document.getElementById("resumenPlan").textContent = "";
+    document.getElementById("tabla").innerHTML = "<p>No hay plan creado.</p>";
+    document.getElementById("semanaSelect").innerHTML = "";
+    document.getElementById("semanaEditSelect").innerHTML = "";
+    currentPlanType = null;
+    return;
+  }
+
+  const u = users[currentUser].usuario;
+  info.textContent = `Sesión: ${u.nombre} (${u.sexo}, ${u.edad} años, ${u.pesoInicial} kg, ${u.altura} cm)`;
+
+  document.getElementById("nombre").value = u.nombre;
+  document.getElementById("sexo").value = u.sexo;
+  document.getElementById("edad").value = u.edad;
+  document.getElementById("peso").value = u.pesoInicial;
+  document.getElementById("altura").value = u.altura;
+
+  if (currentPlanType && users[currentUser].planes[currentPlanType].plan.length > 0) {
+    renderResumenPlan();
+    rellenarSelectsSemanas();
+    renderTabla();
+  } else {
+    document.getElementById("resumenPlan").textContent = "No hay plan activo seleccionado.";
+    document.getElementById("tabla").innerHTML = "<p>No hay plan creado.</p>";
+  }
+}
+
+/* ============================
+   CREAR USUARIO
+============================ */
+function crearUsuarioNuevo() {
+  const nombre = document.getElementById("nombre").value.trim();
+  const sexo = document.getElementById("sexo").value;
+  const edad = parseInt(document.getElementById("edad").value);
+  const pesoInicial = parseFloat(document.getElementById("peso").value);
+  const altura = parseInt(document.getElementById("altura").value);
+
+  if (!nombre || !sexo || !edad || !pesoInicial || !altura) {
+    alert("Completa todos los datos del usuario");
+    return;
+  }
+  if (users[nombre]) {
+    alert("Ya existe un usuario con ese nombre.");
+    return;
+  }
+
+  users[nombre] = {
+    usuario: { nombre, sexo, edad, pesoInicial, altura },
+    planes: {
+      conservadora: { plan: [], registros: [] },
+      realista: { plan: [], registros: [] },
+      agresiva: { plan: [], registros: [] }
+    }
+  };
+
+  currentUser = nombre;
+  currentPlanType = null;
+  saveUsers();
+  alert("Usuario creado correctamente");
+
+  closeAllAccordions();
+  openAccordion("accPlan");
+
+  refrescarInfoUsuario();
+}
+
+/* ============================
+   CARGAR USUARIO
+============================ */
+function cargarUsuarioExistente() {
+  const nombre = document.getElementById("nombre").value.trim();
+  if (!nombre) {
+    alert("Introduce el nombre del usuario");
+    return;
+  }
+  if (!users[nombre]) {
+    alert("No existe ese usuario");
+    return;
+  }
+
+  currentUser = nombre;
+  currentPlanType = null;
+
+  const planes = users[currentUser].planes;
+  const tiposConPlan = Object.keys(planes).filter(t => planes[t].plan.length > 0);
+
+  if (tiposConPlan.length === 0) {
+    alert("Usuario cargado. No tiene planes.");
+    refrescarInfoUsuario();
+    closeAllAccordions();
+    openAccordion("accPlan");
+    return;
+  }
+
+  if (tiposConPlan.length === 1) {
+    currentPlanType = tiposConPlan[0];
+    alert(`Usuario cargado. Plan activo: ${planLabel(currentPlanType)}`);
+    refrescarInfoUsuario();
+    closeAllAccordions();
+    openAccordion("accSeguimiento");
+    return;
+  }
+
+  let body = "<p>Selecciona un plan:</p>";
+  tiposConPlan.forEach(t => {
+    const p = planes[t].plan;
+    const semanas = p.length;
+    const ideal = p[p.length - 1].pesoObjetivo;
+    body += `
+      <button class="modal-btn modal-btn-primary" onclick="selectPlanFromModal('${t}')">
+        ${planLabel(t)} – ${semanas} semanas, ideal ${ideal} kg
+      </button>
+    `;
+  });
+
+  const buttons = `<button class="modal-btn modal-btn-secondary" onclick="closeModal()">Cerrar</button>`;
+  openModal("Planes guardados", body, buttons);
+}
+
+function selectPlanFromModal(tipo) {
+  currentPlanType = tipo;
+  closeModal();
+  alert(`Plan seleccionado: ${planLabel(tipo)}`);
+  refrescarInfoUsuario();
+
+  closeAllAccordions();
+  openAccordion("accSeguimiento");
+}
+
+/* ============================
+   CREAR PLAN
+============================ */
+function crearPlan() {
+  if (!currentUser) {
+    alert("Primero carga un usuario");
+    return;
+  }
+
+  const intensidad = document.getElementById("intensidad").value;
+  if (!intensidad) {
+    alert("Selecciona intensidad");
+    return;
+  }
+
+  const planObj = users[currentUser].planes[intensidad];
+
+  if (planObj.plan.length > 0) {
+    pendingOverwriteType = intensidad;
+
+    const body = `
+      <p>Ya existe un plan <strong>${planLabel(intensidad)}</strong>.</p>
+      <p>¿Quieres reemplazarlo?</p>
+    `;
+    const buttons = `
+      <button class="modal-btn modal-btn-primary" onclick="confirmOverwritePlan()">Reemplazar</button>
+      <button class="modal-btn modal-btn-secondary" onclick="cancelOverwritePlan()">Cancelar</button>
+    `;
+    openModal("Reemplazar plan", body, buttons);
+    return;
+  }
+
+  doCreatePlan(intensidad);
+}
+
+function confirmOverwritePlan() {
+  const intensidad = pendingOverwriteType;
+  pendingOverwriteType = null;
+  closeModal();
+  doCreatePlan(intensidad);
+}
+
+function cancelOverwritePlan() {
+  pendingOverwriteType = null;
+  closeModal();
+}
+
+/* ============================
+   CREAR PLAN REAL
+============================ */
+function doCreatePlan(intensidad) {
+  const u = users[currentUser].usuario;
+  const pesoIdeal = calcularPesoIdeal(u.sexo, u.altura, u.edad);
+
+  const factores = {
+    conservadora: 0.004,
+    realista: 0.007,
+    agresiva: 0.012
+  };
+
+  const perdidaSemanal = u.pesoInicial * factores[intensidad];
+
+  const plan = [];
+  let pesoActual = u.pesoInicial;
+  let semana = 1;
+
+  while (pesoActual > pesoIdeal) {
+    plan.push({ semana, pesoObjetivo: parseFloat(pesoActual.toFixed(2)) });
+    pesoActual -= perdidaSemanal;
+    semana++;
+  }
+
+  plan.push({ semana, pesoObjetivo: pesoIdeal });
+
+  users[currentUser].planes[intensidad] = { plan, registros: [] };
+  currentPlanType = intensidad;
+  saveUsers();
+
+  renderResumenPlan(pesoIdeal, perdidaSemanal, plan.length, intensidad);
+  rellenarSelectsSemanas();
+  renderTabla();
+
+  closeAllAccordions();
+  openAccordion("accRegistrar");
+}
+
+/* ============================
+   RESUMEN PLAN
+============================ */
+function renderResumenPlan(pesoIdealParam, perdidaSemanalParam, semanasParam, tipoParam) {
+  const resumen = document.getElementById("resumenPlan");
+
+  if (!currentUser || !currentPlanType) {
+    resumen.textContent = "No hay plan activo.";
+    return;
+  }
+
+  const u = users[currentUser].usuario;
+  const planObj = users[currentUser].planes[currentPlanType];
+  const plan = planObj.plan;
+
+  const pesoIdeal = pesoIdealParam ?? plan[plan.length - 1].pesoObjetivo;
+  const semanas = semanasParam ?? plan.length;
+  const perdidaSemanal = perdidaSemanalParam ?? (u.pesoInicial - pesoIdeal) / (semanas - 1 || 1);
+  const tipo = tipoParam ?? currentPlanType;
+
+  resumen.innerHTML = `
+    Plan: <strong>${planLabel(tipo)}</strong><br>
+    Peso ideal: <strong>${pesoIdeal.toFixed(1)} kg</strong><br>
+    Semanas: <strong>${semanas}</strong><br>
+    Pérdida semanal: <strong>${perdidaSemanal.toFixed(2)} kg</strong>
+  `;
+}
+
+/* ============================
+   SELECTS DE SEMANAS
+============================ */
+function rellenarSelectsSemanas() {
+  const selectPend = document.getElementById("semanaSelect");
+  const selectEdit = document.getElementById("semanaEditSelect");
+
+  selectPend.innerHTML = "";
+  selectEdit.innerHTML = "";
+
+  if (!currentUser || !currentPlanType) return;
+
+  const planObj = users[currentUser].planes[currentPlanType];
+  const plan = planObj.plan;
+  const registros = planObj.registros;
+
+  plan.forEach(p => {
+    const reg = registros.find(r => r.semana === p.semana);
+
+    if (!reg) {
+      const opt = document.createElement("option");
+      opt.value = p.semana;
+      opt.textContent = `Semana ${p.semana} (obj: ${p.pesoObjetivo} kg)`;
+      selectPend.appendChild(opt);
+    } else {
+      const optE = document.createElement("option");
+      optE.value = p.semana;
+      optE.textContent = `Semana ${p.semana} (real: ${reg.pesoReal} kg)`;
+      selectEdit.appendChild(optE);
+    }
+  });
+}
+
+/* ============================
+   REGISTRAR PESO
+============================ */
+function registrarPeso() {
+  if (!currentUser || !currentPlanType) {
+    alert("No hay usuario o plan activo");
+    return;
+  }
+
+  const semana = parseInt(document.getElementById("semanaSelect").value);
+  const pesoR = parseFloat(document.getElementById("pesoReal").value);
+
+  if (!semana || isNaN(pesoR)) {
+    alert("Selecciona semana y peso real");
+    return;
+  }
+
+  const planObj = users[currentUser].planes[currentPlanType];
+  const registros = planObj.registros;
+
+  const existente = registros.find(r => r.semana === semana);
+  if (existente) existente.pesoReal = pesoR;
+  else registros.push({ semana, pesoReal: pesoR });
+
+  document.getElementById("pesoReal").value = "";
+  saveUsers();
+
+  rellenarSelectsSemanas();
+  renderTabla();
+
+  closeAllAccordions();
+  openAccordion("accSeguimiento");
+}
+
+/* ============================
+   EDITAR REGISTRO
+============================ */
+function editarPeso() {
+  if (!currentUser || !currentPlanType) {
+    alert("No hay usuario o plan activo");
+    return;
+  }
+
+  const semana = parseInt(document.getElementById("semanaEditSelect").value);
+  const pesoR = parseFloat(document.getElementById("pesoRealEdit").value);
+
+  if (!semana || isNaN(pesoR)) {
+    alert("Selecciona semana y nuevo peso real");
+    return;
+  }
+
+  const planObj = users[currentUser].planes[currentPlanType];
+  const registros = planObj.registros;
+
+  const existente = registros.find(r => r.semana === semana);
+  if (!existente) {
+    alert("No hay registro para esa semana");
+    return;
+  }
+
+  existente.pesoReal = pesoR;
+
+  document.getElementById("pesoRealEdit").value = "";
+  saveUsers();
+
+  rellenarSelectsSemanas();
+  renderTabla();
+
+  closeAllAccordions();
+  openAccordion("accSeguimiento");
+}
+
+/* ============================
+   ELIMINAR REGISTRO
+============================ */
+function eliminarPeso() {
+  if (!currentUser || !currentPlanType) {
+    alert("No hay usuario o plan activo");
+    return;
+  }
+
+  const semana = parseInt(document.getElementById("semanaEditSelect").value);
+  if (!semana) {
+    alert("Selecciona una semana registrada para eliminar");
+    return;
+  }
+
+  const planObj = users[currentUser].planes[currentPlanType];
+  const registros = planObj.registros;
+
+  const idx = registros.findIndex(r => r.semana === semana);
+  if (idx === -1) {
+    alert("No hay registro para esa semana");
+    return;
+  }
+
+  registros.splice(idx, 1);
+  saveUsers();
+
+  rellenarSelectsSemanas();
+  renderTabla();
+
+  closeAllAccordions();
+  openAccordion("accSeguimiento");
+}
+
+/* ============================
+   TABLA
+============================ */
+function renderTabla() {
+  const cont = document.getElementById("tabla");
+
+  if (!currentUser || !currentPlanType) {
+    cont.innerHTML = "<p>No hay plan creado.</p>";
+    return;
+  }
+
+  const planObj = users[currentUser].planes[currentPlanType];
+  const plan = planObj.plan;
+  const registros = planObj.registros;
+
+  if (!plan.length) {
+    cont.innerHTML = "<p>No hay plan creado.</p>";
+    return;
+  }
+
+  let html = `
+    <table>
+      <tr>
+        <th>Sem</th>
+        <th>Obj (kg)</th>
+        <th>Real (kg)</th>
+        <th>Dif (kg)</th>
+        <th>Estado</th>
+      </tr>
+  `;
+
+  plan.forEach(p => {
+    const reg = registros.find(r => r.semana === p.semana);
+
+    let real = reg ? reg.pesoReal : "-";
+    let diff = "-";
+    let estado = "-";
+    let clase = "";
+
+    if (reg) {
+      diff = (reg.pesoReal - p.pesoObjetivo).toFixed(2);
+      if (reg.pesoReal <= p.pesoObjetivo) {
+        estado = "🟢";
+        clase = "status-ok";
+      } else {
+        estado = "🔴";
+        clase = "status-bad";
+      }
+    }
+
+    html += `
+      <tr>
+        <td>${p.semana}</td>
+        <td>${p.pesoObjetivo}</td>
+        <td>${real}</td>
+        <td>${diff}</td>
+        <td class="${clase}">${estado}</td>
+      </tr>
+    `;
+  });
+
+  html += "</table>";
+  cont.innerHTML = html;
+}
+
+/* ============================
+   EVENTOS
+============================ */
+document.getElementById("btnCrearUsuario").addEventListener("click", crearUsuarioNuevo);
+document.getElementById("btnCargarUsuario").addEventListener("click", cargarUsuarioExistente);
+document.getElementById("btnCrearPlan").addEventListener("click", crearPlan);
+document.getElementById("btnRegistrarPeso").addEventListener("click", registrarPeso);
+document.getElementById("btnEditarPeso").addEventListener("click", editarPeso);
+document.getElementById("btnEliminarPeso").addEventListener("click", eliminarPeso);
+
+/* ============================
+   ESTADO INICIAL
+============================ */
+refrescarInfoUsuario();
+openAccordion("accUsuario");
+  
+  
 </script>
 
 </body>
