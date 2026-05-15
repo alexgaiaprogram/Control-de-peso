@@ -468,6 +468,14 @@ function refrescarInfoUsuario() {
   const info = document.getElementById("infoUsuario");
 
   if (!currentUser || !users[currentUser]) {
+    // Actualizar header usuario
+document.getElementById("userNameHeader").textContent = currentUser ?? "";
+document.getElementById("userAvatar").src = "";
+
+if (currentUser && users[currentUser]) {
+  const sexo = users[currentUser].usuario.sexo;
+  document.getElementById("userAvatar").src = (sexo === "hombre") ? avatarHombre : avatarMujer;
+  }
     info.textContent = "Sin usuario cargado.";
     document.getElementById("resumenPlan").textContent = "";
     document.getElementById("tabla").innerHTML = "<p>No hay plan creado.</p>";
