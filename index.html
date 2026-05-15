@@ -731,4 +731,473 @@ function mantenerSemanasIdealesNuevoPlan() {
 function definirSemanasObjetivoNuevoPlan() {
   const w = tempPlanWizard;
   const body = `
-    <p>Semanas ideales actuales
+    <p>Semanas ideales actuales: <strong>${w.semanasIdeales}</strong></p>
+    <p>Introduce tus semanas objetivo:</p>
+    <input type="number" id="inputSemanasObjetivo" step="1" min="1" style="width:100%;margin-top:6px;">
+  `;
+  const buttons = `
+    <button class="modal-btn modal-btn-primary" onclick="confirmarSemanasObjetivoNuevoPlan()">Aceptar</button>
+    <button class="modal-btn modal-btn-secondary" onclick="closeModal()">Cancelar</button>
+  `;
+  openModal("Definir semanas objetivo", body, buttons);
+}
+
+function confirmarSemanasObjetivoNuevoPlan() {
+  const valor = parseInt(document.getElementById("inputSemanasObjetivo").value);
+  if (!valor || isNaN(valor) || valor < 1) {
+    alert("Introduce un número de semanas válido (mínimo 1)");
+    return;
+  }
+  tempPlanWizard.semanasObjetivo = valor;
+  closeModal();
+  finalizarNuevoPlanDesdeWizard();
+}
+
+/* ============================
+   FINALIZAR NUEVO PLAN
+============================ */
+function finalizarNuevoPlanDesdeWizard() {
+  const w = tempPlanWizard;
+  const u = users[currentUser].usuario;
+
+  const plan = construirPlan(u.pesoInicial, w.pesoObjetivo, w.semanasObjetivo);
+
+  users[currentUser].planes[w.intensidad] = {
+    plan,
+    registros: [],
+    pesoIdeal: w.pesoIdeal,
+    pesoObjetivo: w.pesoObjetivo,
+    semanasObjetivo: w.semanasObjetivo
+  };
+
+  currentPlanType = w.intensidad;
+  tempPlanWizard = null;
+  saveUsers();
+
+  renderResumenPlan();
+  rellenarSelectsSemanas();
+  renderTabla();
+
+  closeAllAccordions();
+  openAccordion("accRegistrar");
+}
+
+/* ============================
+   CAMBIAR PESO OBJETIVO (BOTÓN)
+============================ */
+function cambiarPesoObjetivoActual() {
+  if (!currentUser || !currentPlanType || !users[currentUser]) {
+    alert("No hay usuario o plan activo");
+    return;
+  }
+  const body = `
+    <p>Si cambias el peso objetivo, se reiniciará el plan y se borrarán todos los registros de seguimiento.</p>
+    <p>¿Quieres continuar?</p>
+  `;
+  const buttons = `
+    <button class="modal-btn modal-btn-primary" onclick="confirmarCambioPesoObjetivo()">Sí, cambiar peso objetivo</button>
+    <button class="modal-btn modal-btn-secondary" onclick="closeModal()">Cancelar</button>
+  `;
+  openModal("Cambiar peso objetivo", body, buttons);
+}
+
+function confirmarCambioPesoObjetivo() {
+  closeModal();
+  const planObj = users[currentUser].planes[currentPlanType];
+  const u = users[currentUser].usuario;
+
+  tempPlanWizard = {
+    modo: "cambioPeso",
+    intensidad: currentPlanType,
+    pesoIdeal: planObj.pesoIdeal ?? calcularPesoIdeal(u.sexo, u.altura, u.edad),
+    semanasIdeales: planObj.semanasObjetivo ?? planObj.plan.length,
+    pesoObjetivo: planObj.pesoObjetivo ?? (planObj.plan.length ? planObj.plan[planObj.plan.length - 1].pesoObjetivo : u.pesoInicial),
+    semanasObjetivo: planObj.semanasObjetivo ?? planObj.plan.length
+  };
+
+  const w = tempPlanWizard;
+  const body = `
+    <p>Peso objetivo actual: <strong>${w.pesoObjetivo.toFixed(1)} kg</strong></p>
+    <p>Introduce el nuevo peso objetivo (kg):</p>
+    <input type="number" id="inputPesoObjetivoCambio" step="0.1" style="width:100%;margin-top:6px;">
+  `;
+  const buttons = `
+    <button class="modal-btn modal-btn-primary" onclick="confirmarPesoObjetivoCambio()">Aceptar</button>
+    <button class="modal-btn modal-btn-secondary" onclick="closeModal()">Cancelar</button>
+  `;
+  openModal("Nuevo peso objetivo", body, buttons);
+}
+
+function confirmarPesoObjetivoCambio() {
+  const u = users[currentUser].usuario;
+  const valor = parseFloat(document.getElementById("inputPesoObjetivoCambio").value);
+  if (!valor || isNaN(valor)) {
+    alert("Introduce un peso objetivo válido");
+    return;
+  }
+  if (valor >= u.pesoInicial) {
+    alert("El peso objetivo debe ser menor que el peso actual");
+    return;
+  }
+  tempPlanWizard.pesoObjetivo = valor;
+
+  const w = tempPlanWizard;
+  const plan = construirPlan(u.pesoInicial, w.pesoObjetivo, w.semanasObjetivo);
+
+  users[currentUser].planes[w.intensidad] = {
+    plan,
+    registros: [],
+    pesoIdeal: w.pesoIdeal,
+    pesoObjetivo: w.pesoObjetivo,
+    semanasObjetivo: w.semanasObjetivo
+  };
+
+  currentPlanType = w.intensidad;
+  tempPlanWizard = null;
+  saveUsers();
+
+  closeModal();
+  renderResumenPlan();
+  rellenarSelectsSemanas();
+  renderTabla();
+
+  closeAllAccordions();
+  openAccordion("accSeguimiento");
+}
+
+/* ============================
+   CAMBIAR SEMANAS OBJETIVO (BOTÓN)
+============================ */
+function cambiarSemanasObjetivoActual() {
+  if (!currentUser || !currentPlanType || !users[currentUser]) {
+    alert("No hay usuario o plan activo");
+    return;
+  }
+  const body = `
+    <p>Si cambias las semanas objetivo, se reiniciará el plan y se borrarán todos los registros de seguimiento.</p>
+    <p>¿Quieres continuar?</p>
+  `;
+  const buttons = `
+    <button class="modal-btn modal-btn-primary" onclick="confirmarCambioSemanasObjetivo()">Sí, cambiar semanas objetivo</button>
+    <button class="modal-btn modal-btn-secondary" onclick="closeModal()">Cancelar</button>
+  `;
+  openModal("Cambiar semanas objetivo", body, buttons);
+}
+
+function confirmarCambioSemanasObjetivo() {
+  closeModal();
+  const planObj = users[currentUser].planes[currentPlanType];
+  const u = users[currentUser].usuario;
+
+  const pesoIdeal = planObj.pesoIdeal ?? calcularPesoIdeal(u.sexo, u.altura, u.edad);
+  const pesoObjetivoActual = planObj.pesoObjetivo ?? (planObj.plan.length ? planObj.plan[planObj.plan.length - 1].pesoObjetivo : pesoIdeal);
+
+  tempPlanWizard = {
+    modo: "cambioSemanas",
+    intensidad: currentPlanType,
+    pesoIdeal,
+    pesoObjetivo: pesoObjetivoActual,
+    semanasObjetivo: planObj.semanasObjetivo ?? planObj.plan.length
+  };
+
+  const w = tempPlanWizard;
+  const body = `
+    <p>Peso objetivo actual: <strong>${w.pesoObjetivo.toFixed(1)} kg</strong></p>
+    <p>Semanas objetivo actuales: <strong>${w.semanasObjetivo}</strong></p>
+    <p>Introduce las nuevas semanas objetivo:</p>
+    <input type="number" id="inputSemanasObjetivoCambio" step="1" min="1" style="width:100%;margin-top:6px;">
+  `;
+  const buttons = `
+    <button class="modal-btn modal-btn-primary" onclick="confirmarSemanasObjetivoCambio()">Aceptar</button>
+    <button class="modal-btn modal-btn-secondary" onclick="closeModal()">Cancelar</button>
+  `;
+  openModal("Nuevas semanas objetivo", body, buttons);
+}
+
+function confirmarSemanasObjetivoCambio() {
+  const valor = parseInt(document.getElementById("inputSemanasObjetivoCambio").value);
+  if (!valor || isNaN(valor) || valor < 1) {
+    alert("Introduce un número de semanas válido (mínimo 1)");
+    return;
+  }
+  tempPlanWizard.semanasObjetivo = valor;
+
+  const w = tempPlanWizard;
+  const u = users[currentUser].usuario;
+  const plan = construirPlan(u.pesoInicial, w.pesoObjetivo, w.semanasObjetivo);
+
+  users[currentUser].planes[w.intensidad] = {
+    plan,
+    registros: [],
+    pesoIdeal: w.pesoIdeal,
+    pesoObjetivo: w.pesoObjetivo,
+    semanasObjetivo: w.semanasObjetivo
+  };
+
+  currentPlanType = w.intensidad;
+  tempPlanWizard = null;
+  saveUsers();
+
+  closeModal();
+  renderResumenPlan();
+  rellenarSelectsSemanas();
+  renderTabla();
+
+  closeAllAccordions();
+  openAccordion("accSeguimiento");
+}
+
+/* ============================
+   RESUMEN PLAN
+============================ */
+function renderResumenPlan() {
+  const resumen = document.getElementById("resumenPlan");
+
+  if (!currentUser || !currentPlanType || !users[currentUser]) {
+    resumen.textContent = "No hay plan activo.";
+    return;
+  }
+
+  const u = users[currentUser].usuario;
+  const planObj = users[currentUser].planes[currentPlanType];
+  const plan = planObj.plan;
+
+  if (!plan || !plan.length) {
+    resumen.textContent = "No hay plan creado.";
+    return;
+  }
+
+  const pesoObjetivo = planObj.pesoObjetivo ?? plan[plan.length - 1].pesoObjetivo;
+  const semanas = planObj.semanasObjetivo ?? plan.length;
+  const perdidaSemanal = (u.pesoInicial - pesoObjetivo) / (semanas - 1 || 1);
+
+  resumen.innerHTML = `
+    Plan: <strong>${planLabel(currentPlanType)}</strong><br>
+    Peso objetivo: <strong>${pesoObjetivo.toFixed(1)} kg</strong><br>
+    Semanas objetivo: <strong>${semanas}</strong><br>
+    Pérdida semanal estimada: <strong>${perdidaSemanal.toFixed(2)} kg</strong>
+  `;
+}
+
+/* ============================
+   SELECTS DE SEMANAS
+============================ */
+function rellenarSelectsSemanas() {
+  const selectPend = document.getElementById("semanaSelect");
+  const selectEdit = document.getElementById("semanaEditSelect");
+
+  selectPend.innerHTML = "";
+  selectEdit.innerHTML = "";
+
+  if (!currentUser || !currentPlanType) return;
+
+  const planObj = users[currentUser].planes[currentPlanType];
+  const plan = planObj.plan;
+  const registros = planObj.registros;
+
+  plan.forEach(p => {
+    const reg = registros.find(r => r.semana === p.semana);
+
+    if (!reg) {
+      const opt = document.createElement("option");
+      opt.value = p.semana;
+      opt.textContent = `Semana ${p.semana} (obj: ${p.pesoObjetivo} kg)`;
+      selectPend.appendChild(opt);
+    } else {
+      const optE = document.createElement("option");
+      optE.value = p.semana;
+      optE.textContent = `Semana ${p.semana} (real: ${reg.pesoReal} kg)`;
+      selectEdit.appendChild(optE);
+    }
+  });
+}
+
+/* ============================
+   REGISTRAR PESO
+============================ */
+function registrarPeso() {
+  if (!currentUser || !currentPlanType) {
+    alert("No hay usuario o plan activo");
+    return;
+  }
+
+  const semana = parseInt(document.getElementById("semanaSelect").value);
+  const pesoR = parseFloat(document.getElementById("pesoReal").value);
+
+  if (!semana || isNaN(pesoR)) {
+    alert("Selecciona semana y peso real");
+    return;
+  }
+
+  const planObj = users[currentUser].planes[currentPlanType];
+  const registros = planObj.registros;
+
+  const existente = registros.find(r => r.semana === semana);
+  if (existente) existente.pesoReal = pesoR;
+  else registros.push({ semana, pesoReal: pesoR });
+
+  document.getElementById("pesoReal").value = "";
+  saveUsers();
+
+  rellenarSelectsSemanas();
+  renderTabla();
+
+  closeAllAccordions();
+  openAccordion("accSeguimiento");
+}
+
+/* ============================
+   EDITAR REGISTRO
+============================ */
+function editarPeso() {
+  if (!currentUser || !currentPlanType) {
+    alert("No hay usuario o plan activo");
+    return;
+  }
+
+  const semana = parseInt(document.getElementById("semanaEditSelect").value);
+  const pesoR = parseFloat(document.getElementById("pesoRealEdit").value);
+
+  if (!semana || isNaN(pesoR)) {
+    alert("Selecciona semana y nuevo peso real");
+    return;
+  }
+
+  const planObj = users[currentUser].planes[currentPlanType];
+  const registros = planObj.registros;
+
+  const existente = registros.find(r => r.semana === semana);
+  if (!existente) {
+    alert("No hay registro para esa semana");
+    return;
+  }
+
+  existente.pesoReal = pesoR;
+
+  document.getElementById("pesoRealEdit").value = "";
+  saveUsers();
+
+  rellenarSelectsSemanas();
+  renderTabla();
+
+  closeAllAccordions();
+  openAccordion("accSeguimiento");
+}
+
+/* ============================
+   ELIMINAR REGISTRO
+============================ */
+function eliminarPeso() {
+  if (!currentUser || !currentPlanType) {
+    alert("No hay usuario o plan activo");
+    return;
+  }
+
+  const semana = parseInt(document.getElementById("semanaEditSelect").value);
+  if (!semana) {
+    alert("Selecciona una semana registrada para eliminar");
+    return;
+  }
+
+  const planObj = users[currentUser].planes[currentPlanType];
+  const registros = planObj.registros;
+
+  const idx = registros.findIndex(r => r.semana === semana);
+  if (idx === -1) {
+    alert("No hay registro para esa semana");
+    return;
+  }
+
+  registros.splice(idx, 1);
+  saveUsers();
+
+  rellenarSelectsSemanas();
+  renderTabla();
+
+  closeAllAccordions();
+  openAccordion("accSeguimiento");
+}
+
+/* ============================
+   TABLA
+============================ */
+function renderTabla() {
+  const cont = document.getElementById("tabla");
+
+  if (!currentUser || !currentPlanType) {
+    cont.innerHTML = "<p>No hay plan creado.</p>";
+    return;
+  }
+
+  const planObj = users[currentUser].planes[currentPlanType];
+  const plan = planObj.plan;
+  const registros = planObj.registros;
+
+  if (!plan.length) {
+    cont.innerHTML = "<p>No hay plan creado.</p>";
+    return;
+  }
+
+  let html = `
+    <table>
+      <tr>
+        <th>Sem</th>
+        <th>Obj (kg)</th>
+        <th>Real (kg)</th>
+        <th>Dif (kg)</th>
+        <th>Estado</th>
+      </tr>
+  `;
+
+  plan.forEach(p => {
+    const reg = registros.find(r => r.semana === p.semana);
+
+    let real = reg ? reg.pesoReal : "-";
+    let diff = "-";
+    let estado = "-";
+    let clase = "";
+
+    if (reg) {
+      diff = (reg.pesoReal - p.pesoObjetivo).toFixed(2);
+      if (reg.pesoReal <= p.pesoObjetivo) {
+        estado = "🟢";
+        clase = "status-ok";
+      } else {
+        estado = "🔴";
+        clase = "status-bad";
+      }
+    }
+
+    html += `
+      <tr>
+        <td>${p.semana}</td>
+        <td>${p.pesoObjetivo}</td>
+        <td>${real}</td>
+        <td>${diff}</td>
+        <td class="${clase}">${estado}</td>
+      </tr>
+    `;
+  });
+
+  html += "</table>";
+  cont.innerHTML = html;
+}
+
+/* ============================
+   EVENTOS
+============================ */
+document.getElementById("btnCrearUsuario").addEventListener("click", crearUsuarioNuevo);
+document.getElementById("btnCargarUsuario").addEventListener("click", cargarUsuarioExistente);
+document.getElementById("btnCrearPlan").addEventListener("click", crearPlan);
+document.getElementById("btnCambiarPesoObjetivo").addEventListener("click", cambiarPesoObjetivoActual);
+document.getElementById("btnCambiarSemanasObjetivo").addEventListener("click", cambiarSemanasObjetivoActual);
+document.getElementById("btnRegistrarPeso").addEventListener("click", registrarPeso);
+document.getElementById("btnEditarPeso").addEventListener("click", editarPeso);
+document.getElementById("btnEliminarPeso").addEventListener("click", eliminarPeso);
+
+/* ============================
+   ESTADO INICIAL
+============================ */
+refrescarInfoUsuario();
+openAccordion("accUsuario");
+  
