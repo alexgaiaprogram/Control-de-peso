@@ -479,21 +479,18 @@ function calcularPesoIdeal(sexo, altura, edad) {
 ============================ */
 function refrescarInfoUsuario() {
   const info = document.getElementById("infoUsuario");
+  const avatarBox = document.getElementById("userTopRight");
+  const avatarImg = document.getElementById("userAvatar");
+  const avatarName = document.getElementById("userNameHeader");
 
-  // --- ACTUALIZAR AVATAR Y NOMBRE ---
-  if (currentUser && users[currentUser]) {
-    const sexo = users[currentUser].usuario.sexo;
-    document.getElementById("userNameHeader").textContent = currentUser;
-    document.getElementById("userAvatar").src =
-      sexo === "hombre" ? avatarHombre : avatarMujer;
-  } else {
-    // Si no hay usuario cargado, limpiar avatar y nombre
-    document.getElementById("userNameHeader").textContent = "";
-    document.getElementById("userAvatar").src = "";
-  }
-
-  // --- SI NO HAY USUARIO, LIMPIAR UI ---
+  // --- SI NO HAY USUARIO ---
   if (!currentUser || !users[currentUser]) {
+    // Ocultar avatar y nombre
+    avatarBox.classList.add("hidden");
+    avatarImg.src = "";
+    avatarName.textContent = "";
+
+    // Limpiar UI
     info.textContent = "Sin usuario cargado.";
     document.getElementById("resumenPlan").textContent = "";
     document.getElementById("tabla").innerHTML = "<p>No hay plan creado.</p>";
@@ -503,8 +500,15 @@ function refrescarInfoUsuario() {
     return;
   }
 
-  // --- SI HAY USUARIO, MOSTRAR SUS DATOS ---
+  // --- SI HAY USUARIO ---
   const u = users[currentUser].usuario;
+
+  // Mostrar avatar y nombre
+  avatarBox.classList.remove("hidden");
+  avatarName.textContent = currentUser;
+  avatarImg.src = (u.sexo === "hombre") ? avatarHombre : avatarMujer;
+
+  // Mostrar datos del usuario
   info.textContent = `Sesión: ${u.nombre} (${u.sexo}, ${u.edad} años, ${u.pesoInicial} kg, ${u.altura} cm)`;
 
   document.getElementById("nombre").value = u.nombre;
